@@ -101,7 +101,7 @@ enum PDFConverter {
               let firstPage = firstDoc.page(at: 0) else {
             throw ConversionError.pdfWriteFailed(destinationURL)
         }
-        var initialBox = firstPage.bounds(for: .mediaBox)
+        var initialBox = CGRect(origin: .zero, size: renderedSize(for: firstPage))
 
         guard let pdfCtx = CGContext(destinationURL as CFURL, mediaBox: &initialBox, nil) else {
             throw ConversionError.pdfWriteFailed(destinationURL)
@@ -118,9 +118,9 @@ enum PDFConverter {
                     throw ConversionError.pdfRenderFailed(written + 1)
                 }
 
-                let bounds = page.bounds(for: .mediaBox)
-                let pixelWidth = Int((bounds.width * scale).rounded())
-                let pixelHeight = Int((bounds.height * scale).rounded())
+                let renderedRect = CGRect(origin: .zero, size: renderedSize(for: page))
+                let pixelWidth = Int((renderedRect.width * scale).rounded())
+                let pixelHeight = Int((renderedRect.height * scale).rounded())
                 guard pixelWidth > 0, pixelHeight > 0 else {
                     pdfCtx.closePDF()
                     throw ConversionError.pdfRenderFailed(written + 1)
@@ -146,7 +146,6 @@ enum PDFConverter {
                 renderCtx.setFillColor(CGColor.white)
                 renderCtx.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
                 renderCtx.scaleBy(x: scale, y: scale)
-                renderCtx.translateBy(x: -bounds.minX, y: -bounds.minY)
                 page.draw(with: .mediaBox, to: renderCtx)
 
                 guard let rendered = renderCtx.makeImage() else {
@@ -175,13 +174,13 @@ enum PDFConverter {
                     throw ConversionError.imageEncodeFailed("JPEG")
                 }
 
-                var pageBox = bounds
+                var pageBox = renderedRect
                 let boxData = Data(bytes: &pageBox, count: MemoryLayout<CGRect>.size)
                 let pageInfo: [String: Any] = [
                     kCGPDFContextMediaBox as String: boxData
                 ]
                 pdfCtx.beginPDFPage(pageInfo as CFDictionary)
-                pdfCtx.draw(jpegImage, in: bounds)
+                pdfCtx.draw(jpegImage, in: renderedRect)
                 pdfCtx.endPDFPage()
 
                 written += 1
@@ -256,9 +255,9 @@ enum PDFConverter {
                 throw ConversionError.pdfRenderFailed(index + 1)
             }
 
-            let bounds = page.bounds(for: .mediaBox)
-            let pixelWidth = Int((bounds.width * scale).rounded())
-            let pixelHeight = Int((bounds.height * scale).rounded())
+            let renderedSize = renderedSize(for: page)
+            let pixelWidth = Int((renderedSize.width * scale).rounded())
+            let pixelHeight = Int((renderedSize.height * scale).rounded())
             guard pixelWidth > 0, pixelHeight > 0 else {
                 throw ConversionError.pdfRenderFailed(index + 1)
             }
@@ -282,7 +281,6 @@ enum PDFConverter {
             ctx.setFillColor(CGColor.white)
             ctx.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
             ctx.scaleBy(x: scale, y: scale)
-            ctx.translateBy(x: -bounds.minX, y: -bounds.minY)
             page.draw(with: .mediaBox, to: ctx)
 
             guard let cgImage = ctx.makeImage() else {
@@ -303,6 +301,14 @@ enum PDFConverter {
         }
 
         return results
+    }
+
+    private static func renderedSize(for page: PDFPage) -> CGSize {
+        let bounds = page.bounds(for: .mediaBox)
+        let isQuarterTurn = (abs(page.rotation) % 180) != 0
+        return isQuarterTurn
+            ? CGSize(width: bounds.height, height: bounds.width)
+            : bounds.size
     }
 
     private static func writeCGImage(

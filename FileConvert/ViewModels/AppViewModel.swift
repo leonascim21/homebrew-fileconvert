@@ -1,7 +1,6 @@
 import Foundation
 import AppKit
 import Observation
-import UniformTypeIdentifiers
 
 enum ConversionResult: Equatable {
     case singleFile(URL)
@@ -129,10 +128,7 @@ final class AppViewModel {
         guard case .image(let source) = route else { return }
         let target = singleImageTarget
         let suggested = source.deletingPathExtension().lastPathComponent + "." + target.fileExtension
-        guard let destination = promptSaveDestination(
-            suggestedName: suggested,
-            allowedContentType: target.utTypeForSave
-        ) else { return }
+        let destination = uniqueDownloadFile(suggestedName: suggested)
 
         runConversion { [options = self.options] progress in
             switch target {
@@ -167,9 +163,11 @@ final class AppViewModel {
 
     private func startPDFToImages(source: URL) {
         let format = pdfOutputFormat
-        guard let destinationDir = promptDirectory(
-            message: "Choose a folder for the rendered pages."
-        ) else { return }
+        let folderName = source.deletingPathExtension().lastPathComponent + " pages"
+        guard let destinationDir = uniqueDownloadFolder(baseName: folderName) else {
+            state = .failed("Could not create folder in Downloads.")
+            return
+        }
 
         runConversion { [options = self.options] progress in
             let outputs = try await PDFConverter.pdfToImages(
@@ -185,10 +183,7 @@ final class AppViewModel {
 
     private func startPDFCompress(source: URL) {
         let suggested = source.deletingPathExtension().lastPathComponent + " compressed.pdf"
-        guard let destination = promptSaveDestination(
-            suggestedName: suggested,
-            allowedContentType: .pdf
-        ) else { return }
+        let destination = uniqueDownloadFile(suggestedName: suggested)
 
         runConversion { [options = self.options] progress in
             try await PDFConverter.mergePDFs(
@@ -205,10 +200,7 @@ final class AppViewModel {
     func startDocxConversion() {
         guard case .docx(let source) = route else { return }
         let suggested = source.deletingPathExtension().lastPathComponent + ".pdf"
-        guard let destination = promptSaveDestination(
-            suggestedName: suggested,
-            allowedContentType: .pdf
-        ) else { return }
+        let destination = uniqueDownloadFile(suggestedName: suggested)
 
         runConversion { progress in
             try await DocumentConverter.docxToPDF(
@@ -224,10 +216,7 @@ final class AppViewModel {
         guard case .video(let source) = route else { return }
         let format = videoTarget
         let suggested = source.deletingPathExtension().lastPathComponent + "." + format.fileExtension
-        guard let destination = promptSaveDestination(
-            suggestedName: suggested,
-            allowedContentType: format.utTypeForSave
-        ) else { return }
+        let destination = uniqueDownloadFile(suggestedName: suggested)
 
         runConversion { [options = self.options] progress in
             try await VideoConverter.convert(
@@ -248,9 +237,11 @@ final class AppViewModel {
 
         switch mode {
         case .convertEach:
-            guard let destinationDir = promptDirectory(
-                message: "Choose a folder for the converted images."
-            ) else { return }
+            let folderName = "Converted images"
+            guard let destinationDir = uniqueDownloadFolder(baseName: folderName) else {
+                state = .failed("Could not create folder in Downloads.")
+                return
+            }
 
             runConversion { [options = self.options] progress in
                 var outputs: [URL] = []
@@ -278,10 +269,7 @@ final class AppViewModel {
         case .mergeIntoPDF:
             let firstBase = sources.first?.deletingPathExtension().lastPathComponent ?? "Merged"
             let suggested = "\(firstBase) merged.pdf"
-            guard let destination = promptSaveDestination(
-                suggestedName: suggested,
-                allowedContentType: .pdf
-            ) else { return }
+            let destination = uniqueDownloadFile(suggestedName: suggested)
 
             runConversion { progress in
                 try await PDFConverter.mergeImagesToPDF(
@@ -298,10 +286,7 @@ final class AppViewModel {
         guard case .multiPDF(let sources) = route else { return }
         let firstBase = sources.first?.deletingPathExtension().lastPathComponent ?? "Merged"
         let suggested = "\(firstBase) merged.pdf"
-        guard let destination = promptSaveDestination(
-            suggestedName: suggested,
-            allowedContentType: .pdf
-        ) else { return }
+        let destination = uniqueDownloadFile(suggestedName: suggested)
 
         runConversion { [options = self.options] progress in
             try await PDFConverter.mergePDFs(
@@ -315,31 +300,43 @@ final class AppViewModel {
         }
     }
 
-    // MARK: - Panels
+    // MARK: - Output destinations (Downloads)
 
-    private func promptSaveDestination(
-        suggestedName: String,
-        allowedContentType: UTType?
-    ) -> URL? {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = suggestedName
-        panel.canCreateDirectories = true
-        panel.isExtensionHidden = false
-        if let allowedContentType {
-            panel.allowedContentTypes = [allowedContentType]
+    private func downloadsDirectory() -> URL {
+        if let url = try? FileManager.default.url(
+            for: .downloadsDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) {
+            return url
         }
-        return panel.runModal() == .OK ? panel.url : nil
+        return URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")
     }
 
-    private func promptDirectory(message: String) -> URL? {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Choose"
-        panel.message = message
-        return panel.runModal() == .OK ? panel.url : nil
+    private func uniqueDownloadFile(suggestedName: String) -> URL {
+        let downloads = downloadsDirectory()
+        let nameURL = URL(fileURLWithPath: suggestedName)
+        let baseName = nameURL.deletingPathExtension().lastPathComponent
+        let ext = nameURL.pathExtension
+        return OutputNamer.uniqueURL(in: downloads, baseName: baseName, fileExtension: ext)
+    }
+
+    private func uniqueDownloadFolder(baseName: String) -> URL? {
+        let fm = FileManager.default
+        let downloads = downloadsDirectory()
+        var candidate = downloads.appendingPathComponent(baseName)
+        var index = 1
+        while fm.fileExists(atPath: candidate.path) {
+            candidate = downloads.appendingPathComponent("\(baseName) (\(index))")
+            index += 1
+        }
+        do {
+            try fm.createDirectory(at: candidate, withIntermediateDirectories: true)
+            return candidate
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - Runner
@@ -380,25 +377,3 @@ final class AppViewModel {
     }
 }
 
-private extension SingleImageTarget {
-    var utType: UTType {
-        switch self {
-        case .image(let f): return f.utType
-        case .pdf: return .pdf
-        }
-    }
-
-    var utTypeForSave: UTType? {
-        utType
-    }
-}
-
-private extension VideoFormat {
-    var utTypeForSave: UTType? {
-        switch self {
-        case .mp4: return .mpeg4Movie
-        case .mov: return .quickTimeMovie
-        case .m4v: return UTType(filenameExtension: "m4v")
-        }
-    }
-}
