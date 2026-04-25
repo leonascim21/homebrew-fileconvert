@@ -95,7 +95,7 @@ enum ImageConverter {
         default: raw = nil
         }
         guard let raw else { return nil }
-        return options.imageCompression == .lossless ? 1.0 : raw
+        return options.imageCompression == .lossy ? raw : 1.0
     }
 
     private static func downsampleMaxPixels(options: ConversionOptions) -> Int? {

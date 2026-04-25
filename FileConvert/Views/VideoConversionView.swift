@@ -34,9 +34,7 @@ struct VideoConversionView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
 
-                Text(viewModel.options.videoCompression == .lossless
-                     ? "Remuxes without re-encoding — fastest, no quality loss when codecs match."
-                     : "Re-encodes video and audio at the chosen preset.")
+                Text(videoFootnote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -67,6 +65,17 @@ struct VideoConversionView: View {
                 viewModel.startVideoConversion()
             }
             .padding(.top, 4)
+        }
+    }
+
+    private var videoFootnote: String {
+        switch viewModel.options.videoCompression {
+        case .off:
+            return "No compression — copies streams without re-encoding when the container allows."
+        case .lossless:
+            return "Remuxes without re-encoding — fastest, no quality loss when codecs match."
+        case .lossy:
+            return "Re-encodes video and audio at the chosen preset."
         }
     }
 }

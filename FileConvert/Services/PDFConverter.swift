@@ -44,6 +44,16 @@ enum PDFConverter {
             throw ConversionError.pdfWriteFailed(destinationURL)
         }
 
+        if compression == .off, sourceURLs.count == 1, let src = sourceURLs.first {
+            let fm = FileManager.default
+            if fm.fileExists(atPath: destinationURL.path) {
+                try? fm.removeItem(at: destinationURL)
+            }
+            try fm.copyItem(at: src, to: destinationURL)
+            await progress(1)
+            return
+        }
+
         var totalPages = 0
         let docs: [PDFDocument] = try sourceURLs.map { url in
             guard let doc = PDFDocument(url: url) else {
@@ -58,7 +68,7 @@ enum PDFConverter {
         }
 
         switch compression {
-        case .lossless:
+        case .off, .lossless:
             let merged = PDFDocument()
             var written = 0
             for doc in docs {

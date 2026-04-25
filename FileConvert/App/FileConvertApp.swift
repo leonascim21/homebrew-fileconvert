@@ -7,7 +7,7 @@ struct FileConvertApp: App {
     @State private var viewModel = AppViewModel.shared
 
     var body: some Scene {
-        WindowGroup("FileConvert") {
+        Window("FileConvert", id: "main") {
             ContentView()
                 .environment(viewModel)
                 .frame(minWidth: 680, minHeight: 520)
@@ -28,5 +28,9 @@ struct FileConvertApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         AppViewModel.shared.handleDrop(urls: urls)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
     }
 }

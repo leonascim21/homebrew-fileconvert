@@ -13,7 +13,7 @@ enum VideoConverter {
         try Task.checkCancellation()
 
         let asset = AVURLAsset(url: sourceURL)
-        let effectivePreset: VideoPreset = options.videoCompression == .lossless ? .passthrough : options.videoPreset
+        let effectivePreset: VideoPreset = options.videoCompression == .lossy ? options.videoPreset : .passthrough
         guard let session = AVAssetExportSession(
             asset: asset,
             presetName: effectivePreset.avPresetName

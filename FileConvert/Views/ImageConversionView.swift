@@ -67,14 +67,31 @@ struct ImageConversionView: View {
     }
 
     private var footnote: String {
-        if case .image(let format) = viewModel.singleImageTarget, format.isLossy {
-            return viewModel.options.imageCompression == .lossless
-                ? "Encodes \(format.displayName) at maximum quality."
-                : "Reduces \(format.displayName) quality and (optionally) image dimensions."
+        let isLossyTarget: Bool = {
+            if case .image(let format) = viewModel.singleImageTarget { return format.isLossy }
+            return false
+        }()
+        let formatName: String? = {
+            if case .image(let format) = viewModel.singleImageTarget, format.isLossy {
+                return format.displayName
+            }
+            return nil
+        }()
+
+        switch viewModel.options.imageCompression {
+        case .off:
+            return isLossyTarget
+                ? "No compression applied — encodes \(formatName ?? "") at maximum quality."
+                : "No compression applied — preserves the original pixels exactly."
+        case .lossless:
+            return isLossyTarget
+                ? "Encodes \(formatName ?? "") at maximum quality."
+                : "Preserves the original pixels exactly."
+        case .lossy:
+            return isLossyTarget
+                ? "Reduces \(formatName ?? "") quality and (optionally) image dimensions."
+                : "Optionally downsamples image dimensions before encoding."
         }
-        return viewModel.options.imageCompression == .lossless
-            ? "Preserves the original pixels exactly."
-            : "Optionally downsamples image dimensions before encoding."
     }
 
     @ViewBuilder

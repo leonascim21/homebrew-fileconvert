@@ -60,6 +60,28 @@ struct PDFConversionView: View {
         }
     }
 
+    private var imagesFootnote: String {
+        switch viewModel.options.imageCompression {
+        case .off:
+            return "Renders pages at the chosen DPI; no compression applied beyond format defaults."
+        case .lossless:
+            return "Renders pages at the chosen DPI; lossy formats encoded at maximum quality."
+        case .lossy:
+            return "Renders pages at the chosen DPI; lossy formats use the quality slider."
+        }
+    }
+
+    private var pdfCompressFootnote: String {
+        switch viewModel.options.pdfCompression {
+        case .off:
+            return "Saves the original PDF unchanged — no compression applied."
+        case .lossless:
+            return "Re-saves the PDF without rasterizing — preserves text and vectors exactly."
+        case .lossy:
+            return "Rasterizes pages and re-encodes them as JPEG. Smaller files; text becomes images."
+        }
+    }
+
     @ViewBuilder
     private var imagesControls: some View {
         @Bindable var bindable = viewModel
@@ -89,9 +111,7 @@ struct PDFConversionView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            Text(viewModel.options.imageCompression == .lossless
-                 ? "Renders pages at the chosen DPI; lossy formats encoded at maximum quality."
-                 : "Renders pages at the chosen DPI; lossy formats use the quality slider.")
+            Text(imagesFootnote)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -132,9 +152,7 @@ struct PDFConversionView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            Text(viewModel.options.pdfCompression == .lossless
-                 ? "Re-saves the PDF without rasterizing — preserves text and vectors exactly."
-                 : "Rasterizes pages and re-encodes them as JPEG. Smaller files; text becomes images.")
+            Text(pdfCompressFootnote)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

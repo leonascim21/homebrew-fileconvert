@@ -18,6 +18,7 @@ struct ConversionOptions: Equatable, Sendable {
 }
 
 enum CompressionMode: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case off
     case lossless
     case lossy
 
@@ -25,6 +26,7 @@ enum CompressionMode: String, CaseIterable, Identifiable, Hashable, Sendable {
 
     var displayName: String {
         switch self {
+        case .off: return "Off"
         case .lossless: return "Lossless"
         case .lossy: return "Lossy"
         }
@@ -32,6 +34,7 @@ enum CompressionMode: String, CaseIterable, Identifiable, Hashable, Sendable {
 
     var symbol: String {
         switch self {
+        case .off: return "circle.slash"
         case .lossless: return "lock.shield"
         case .lossy: return "wand.and.rays"
         }

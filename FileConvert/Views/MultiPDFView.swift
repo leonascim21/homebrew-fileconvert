@@ -60,6 +60,8 @@ struct MultiPDFView: View {
 
     private var compressionFootnote: String {
         switch viewModel.options.pdfCompression {
+        case .off:
+            return "Combines PDFs as-is — no re-encoding or compression applied."
         case .lossless:
             return "Preserves text, vectors, and original images exactly."
         case .lossy:
