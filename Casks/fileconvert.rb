@@ -12,6 +12,8 @@ cask "fileconvert" do
     strategy :github_latest
   end
 
+  depends_on macos: ">= :tahoe"
+
   app "FileConvert.app"
 
   zap trash: [
