@@ -3,6 +3,7 @@ import PDFKit
 import AppKit
 import ImageIO
 import CoreGraphics
+import UniformTypeIdentifiers
 
 enum PDFConverter {
     static func imageToPDF(
@@ -32,6 +33,8 @@ enum PDFConverter {
     static func mergePDFs(
         sourceURLs: [URL],
         destinationURL: URL,
+        compression: CompressionMode,
+        options: ConversionOptions,
         progress: @Sendable (Double) async -> Void
     ) async throws {
         await progress(0)
@@ -41,7 +44,6 @@ enum PDFConverter {
             throw ConversionError.pdfWriteFailed(destinationURL)
         }
 
-        let merged = PDFDocument()
         var totalPages = 0
         let docs: [PDFDocument] = try sourceURLs.map { url in
             guard let doc = PDFDocument(url: url) else {
@@ -55,22 +57,139 @@ enum PDFConverter {
             throw ConversionError.pdfWriteFailed(destinationURL)
         }
 
+        switch compression {
+        case .lossless:
+            let merged = PDFDocument()
+            var written = 0
+            for doc in docs {
+                for index in 0..<doc.pageCount {
+                    try Task.checkCancellation()
+                    guard let page = doc.page(at: index) else {
+                        throw ConversionError.pdfRenderFailed(written + 1)
+                    }
+                    merged.insert(page, at: merged.pageCount)
+                    written += 1
+                    await progress(Double(written) / Double(totalPages) * 0.95)
+                }
+            }
+            if !merged.write(to: destinationURL) {
+                throw ConversionError.pdfWriteFailed(destinationURL)
+            }
+            await progress(1)
+
+        case .lossy:
+            try await writeLossyPDF(
+                docs: docs,
+                totalPages: totalPages,
+                destinationURL: destinationURL,
+                quality: options.pdfCompressionQuality,
+                dpi: options.pdfCompressionDPI,
+                progress: progress
+            )
+        }
+    }
+
+    private static func writeLossyPDF(
+        docs: [PDFDocument],
+        totalPages: Int,
+        destinationURL: URL,
+        quality: Double,
+        dpi: Double,
+        progress: @Sendable (Double) async -> Void
+    ) async throws {
+        guard let firstDoc = docs.first(where: { $0.pageCount > 0 }),
+              let firstPage = firstDoc.page(at: 0) else {
+            throw ConversionError.pdfWriteFailed(destinationURL)
+        }
+        var initialBox = firstPage.bounds(for: .mediaBox)
+
+        guard let pdfCtx = CGContext(destinationURL as CFURL, mediaBox: &initialBox, nil) else {
+            throw ConversionError.pdfWriteFailed(destinationURL)
+        }
+
+        let scale = dpi / 72.0
         var written = 0
+
         for doc in docs {
             for index in 0..<doc.pageCount {
                 try Task.checkCancellation()
                 guard let page = doc.page(at: index) else {
+                    pdfCtx.closePDF()
                     throw ConversionError.pdfRenderFailed(written + 1)
                 }
-                merged.insert(page, at: merged.pageCount)
+
+                let bounds = page.bounds(for: .mediaBox)
+                let pixelWidth = Int((bounds.width * scale).rounded())
+                let pixelHeight = Int((bounds.height * scale).rounded())
+                guard pixelWidth > 0, pixelHeight > 0 else {
+                    pdfCtx.closePDF()
+                    throw ConversionError.pdfRenderFailed(written + 1)
+                }
+
+                let colorSpace = CGColorSpaceCreateDeviceRGB()
+                let bitmapInfo = CGImageAlphaInfo.noneSkipFirst.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue
+
+                guard let renderCtx = CGContext(
+                    data: nil,
+                    width: pixelWidth,
+                    height: pixelHeight,
+                    bitsPerComponent: 8,
+                    bytesPerRow: 0,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                ) else {
+                    pdfCtx.closePDF()
+                    throw ConversionError.pdfRenderFailed(written + 1)
+                }
+
+                renderCtx.setFillColor(CGColor.white)
+                renderCtx.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
+                renderCtx.scaleBy(x: scale, y: scale)
+                renderCtx.translateBy(x: -bounds.minX, y: -bounds.minY)
+                page.draw(with: .mediaBox, to: renderCtx)
+
+                guard let rendered = renderCtx.makeImage() else {
+                    pdfCtx.closePDF()
+                    throw ConversionError.pdfRenderFailed(written + 1)
+                }
+
+                let jpegData = NSMutableData()
+                guard let jpegDest = CGImageDestinationCreateWithData(
+                    jpegData, UTType.jpeg.identifier as CFString, 1, nil
+                ) else {
+                    pdfCtx.closePDF()
+                    throw ConversionError.imageEncodeFailed("JPEG")
+                }
+                let props: [String: Any] = [
+                    kCGImageDestinationLossyCompressionQuality as String: quality
+                ]
+                CGImageDestinationAddImage(jpegDest, rendered, props as CFDictionary)
+                guard CGImageDestinationFinalize(jpegDest) else {
+                    pdfCtx.closePDF()
+                    throw ConversionError.imageEncodeFailed("JPEG")
+                }
+                guard let jpegSource = CGImageSourceCreateWithData(jpegData, nil),
+                      let jpegImage = CGImageSourceCreateImageAtIndex(jpegSource, 0, nil) else {
+                    pdfCtx.closePDF()
+                    throw ConversionError.imageEncodeFailed("JPEG")
+                }
+
+                var pageBox = bounds
+                let boxData = Data(bytes: &pageBox, count: MemoryLayout<CGRect>.size)
+                let pageInfo: [String: Any] = [
+                    kCGPDFContextMediaBox as String: boxData
+                ]
+                pdfCtx.beginPDFPage(pageInfo as CFDictionary)
+                pdfCtx.draw(jpegImage, in: bounds)
+                pdfCtx.endPDFPage()
+
                 written += 1
                 await progress(Double(written) / Double(totalPages) * 0.95)
             }
         }
 
-        if !merged.write(to: destinationURL) {
-            throw ConversionError.pdfWriteFailed(destinationURL)
-        }
+        pdfCtx.closePDF()
         await progress(1)
     }
 

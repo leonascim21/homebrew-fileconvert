@@ -23,22 +23,39 @@ struct VideoConversionView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Quality preset")
+                Text("Compression")
                     .font(.headline)
-                Picker("Preset", selection: $bindable.options.videoPreset) {
-                    ForEach(VideoPreset.allCases) { preset in
-                        Text(preset.displayName).tag(preset)
+
+                Picker("Compression", selection: $bindable.options.videoCompression) {
+                    ForEach(CompressionMode.allCases) { mode in
+                        Label(mode.displayName, systemImage: mode.symbol).tag(mode)
                     }
                 }
-                .pickerStyle(.menu)
+                .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(maxWidth: 260, alignment: .leading)
 
-                Text(viewModel.options.videoPreset == .passthrough
-                     ? "Fastest — remuxes without re-encoding when codecs match."
-                     : "Re-encodes video and audio to the chosen target.")
+                Text(viewModel.options.videoCompression == .lossless
+                     ? "Remuxes without re-encoding — fastest, no quality loss when codecs match."
+                     : "Re-encodes video and audio at the chosen preset.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                if viewModel.options.videoCompression == .lossy {
+                    HStack {
+                        Text("Preset")
+                            .font(.subheadline)
+                        Spacer()
+                        Picker("Preset", selection: $bindable.options.videoPreset) {
+                            ForEach(VideoPreset.allCases.filter { $0 != .passthrough }) { preset in
+                                Text(preset.displayName).tag(preset)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(maxWidth: 220)
+                    }
+                    .padding(.top, 4)
+                }
             }
             .padding(14)
             .glassEffect(.regular, in: .rect(cornerRadius: 14))

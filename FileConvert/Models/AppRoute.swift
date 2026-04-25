@@ -5,12 +5,34 @@ enum AppRoute: Equatable {
     case image(source: URL)
     case pdf(source: URL)
     case video(source: URL)
+    case docx(source: URL)
     case multiImage(sources: [URL])
     case multiPDF(sources: [URL])
 
     var isLanding: Bool {
         if case .landing = self { return true }
         return false
+    }
+}
+
+enum PDFOutputTarget: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case images
+    case pdf
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .images: return "Images"
+        case .pdf: return "PDF (compressed)"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .images: return "photo.stack"
+        case .pdf: return "doc.richtext"
+        }
     }
 }
 

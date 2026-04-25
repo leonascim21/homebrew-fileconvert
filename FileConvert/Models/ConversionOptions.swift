@@ -5,10 +5,37 @@ struct ConversionOptions: Equatable, Sendable {
     var jpegQuality: Double = 0.9
     var heicQuality: Double = 0.85
     var webpQuality: Double = 0.85
+    var imageCompression: CompressionMode = .lossless
+    var imageMaxLongEdge: Double = 0
     var pdfDPI: Double = 200
+    var pdfCompression: CompressionMode = .lossless
+    var pdfCompressionQuality: Double = 0.7
+    var pdfCompressionDPI: Double = 150
+    var videoCompression: CompressionMode = .lossless
     var videoPreset: VideoPreset = .highest
 
     static let `default` = ConversionOptions()
+}
+
+enum CompressionMode: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case lossless
+    case lossy
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .lossless: return "Lossless"
+        case .lossy: return "Lossy"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .lossless: return "lock.shield"
+        case .lossy: return "wand.and.rays"
+        }
+    }
 }
 
 enum VideoPreset: String, CaseIterable, Identifiable, Hashable, Sendable {

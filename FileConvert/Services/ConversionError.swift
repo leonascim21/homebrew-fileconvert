@@ -8,6 +8,7 @@ enum ConversionError: LocalizedError {
     case pdfLoadFailed(URL)
     case pdfWriteFailed(URL)
     case pdfRenderFailed(Int)
+    case documentLoadFailed(URL)
     case videoSessionFailed(String)
     case unknown(String)
 
@@ -27,6 +28,8 @@ enum ConversionError: LocalizedError {
             return "Could not write PDF to \(url.lastPathComponent)"
         case .pdfRenderFailed(let page):
             return "Could not render PDF page \(page)"
+        case .documentLoadFailed(let url):
+            return "Could not read document \(url.lastPathComponent)"
         case .videoSessionFailed(let reason):
             return "Video export failed: \(reason)"
         case .unknown(let reason):

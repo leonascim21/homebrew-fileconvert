@@ -23,9 +23,7 @@ struct ImageConversionView: View {
                 .frame(maxWidth: 220, alignment: .leading)
             }
 
-            if case .image(let format) = viewModel.singleImageTarget, format.isLossy {
-                qualitySlider(format: format)
-            }
+            compressionCard
 
             ActionFooter(
                 actionLabel: "Convert & Save…",
@@ -35,6 +33,48 @@ struct ImageConversionView: View {
             }
             .padding(.top, 4)
         }
+    }
+
+    @ViewBuilder
+    private var compressionCard: some View {
+        @Bindable var bindable = viewModel
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Compression")
+                .font(.headline)
+
+            Picker("Compression", selection: $bindable.options.imageCompression) {
+                ForEach(CompressionMode.allCases) { mode in
+                    Label(mode.displayName, systemImage: mode.symbol).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            Text(footnote)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if viewModel.options.imageCompression == .lossy {
+                if case .image(let format) = viewModel.singleImageTarget, format.isLossy {
+                    qualitySlider(format: format)
+                }
+                maxEdgeSlider
+            }
+        }
+        .padding(14)
+        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+    }
+
+    private var footnote: String {
+        if case .image(let format) = viewModel.singleImageTarget, format.isLossy {
+            return viewModel.options.imageCompression == .lossless
+                ? "Encodes \(format.displayName) at maximum quality."
+                : "Reduces \(format.displayName) quality and (optionally) image dimensions."
+        }
+        return viewModel.options.imageCompression == .lossless
+            ? "Preserves the original pixels exactly."
+            : "Optionally downsamples image dimensions before encoding."
     }
 
     @ViewBuilder
@@ -61,7 +101,24 @@ struct ImageConversionView: View {
             }
             Slider(value: binding, in: 0.1...1.0)
         }
-        .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+    }
+
+    @ViewBuilder
+    private var maxEdgeSlider: some View {
+        @Bindable var bindable = viewModel
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Max long edge")
+                    .font(.subheadline)
+                Spacer()
+                Text(viewModel.options.imageMaxLongEdge == 0
+                     ? "Original"
+                     : "\(Int(viewModel.options.imageMaxLongEdge)) px")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $bindable.options.imageMaxLongEdge, in: 0...8000, step: 100)
+        }
     }
 }

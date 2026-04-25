@@ -18,6 +18,9 @@ struct ContentView: View {
             case .video(let source):
                 VideoConversionView(source: source)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
+            case .docx(let source):
+                DocxConversionView(source: source)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             case .multiImage(let sources):
                 MultiImageView(sources: sources)
                     .transition(.move(edge: .trailing).combined(with: .opacity))

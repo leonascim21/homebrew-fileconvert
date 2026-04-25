@@ -43,6 +43,7 @@ final class AppViewModel {
 
     var singleImageTarget: SingleImageTarget = .image(.png)
     var pdfOutputFormat: ImageFormat = .png
+    var pdfOutputTarget: PDFOutputTarget = .images
     var videoTarget: VideoFormat = .mp4
     var multiImageMode: MultiImageMode = .convertEach
     var multiImageFormat: ImageFormat = .png
@@ -63,7 +64,7 @@ final class AppViewModel {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
         panel.prompt = "Select"
-        panel.message = "Choose an image, PDF, or video — or multiple images / PDFs."
+        panel.message = "Choose an image, PDF, video, or Word document — or multiple images / PDFs."
         if panel.runModal() == .OK {
             route(to: panel.urls)
         }
@@ -85,10 +86,13 @@ final class AppViewModel {
                 route = .image(source: url)
             case .pdf:
                 pdfOutputFormat = .png
+                pdfOutputTarget = .images
                 route = .pdf(source: url)
             case .video:
                 videoTarget = .mp4
                 route = .video(source: url)
+            case .document:
+                route = .docx(source: url)
             case .none:
                 state = .failed("Unsupported file type: \(url.lastPathComponent)")
             }
@@ -153,6 +157,15 @@ final class AppViewModel {
 
     func startPDFConversion() {
         guard case .pdf(let source) = route else { return }
+        switch pdfOutputTarget {
+        case .images:
+            startPDFToImages(source: source)
+        case .pdf:
+            startPDFCompress(source: source)
+        }
+    }
+
+    private func startPDFToImages(source: URL) {
         let format = pdfOutputFormat
         guard let destinationDir = promptDirectory(
             message: "Choose a folder for the rendered pages."
@@ -167,6 +180,43 @@ final class AppViewModel {
                 progress: progress
             )
             return .multipleFiles(outputs)
+        }
+    }
+
+    private func startPDFCompress(source: URL) {
+        let suggested = source.deletingPathExtension().lastPathComponent + " compressed.pdf"
+        guard let destination = promptSaveDestination(
+            suggestedName: suggested,
+            allowedContentType: .pdf
+        ) else { return }
+
+        runConversion { [options = self.options] progress in
+            try await PDFConverter.mergePDFs(
+                sourceURLs: [source],
+                destinationURL: destination,
+                compression: options.pdfCompression,
+                options: options,
+                progress: progress
+            )
+            return .singleFile(destination)
+        }
+    }
+
+    func startDocxConversion() {
+        guard case .docx(let source) = route else { return }
+        let suggested = source.deletingPathExtension().lastPathComponent + ".pdf"
+        guard let destination = promptSaveDestination(
+            suggestedName: suggested,
+            allowedContentType: .pdf
+        ) else { return }
+
+        runConversion { progress in
+            try await DocumentConverter.docxToPDF(
+                sourceURL: source,
+                destinationURL: destination,
+                progress: progress
+            )
+            return .singleFile(destination)
         }
     }
 
@@ -253,10 +303,12 @@ final class AppViewModel {
             allowedContentType: .pdf
         ) else { return }
 
-        runConversion { progress in
+        runConversion { [options = self.options] progress in
             try await PDFConverter.mergePDFs(
                 sourceURLs: sources,
                 destinationURL: destination,
+                compression: options.pdfCompression,
+                options: options,
                 progress: progress
             )
             return .singleFile(destination)

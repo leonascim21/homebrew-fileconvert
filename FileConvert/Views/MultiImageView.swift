@@ -47,7 +47,7 @@ struct MultiImageView: View {
     private var convertEachControls: some View {
         @Bindable var bindable = viewModel
 
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Target format")
                     .font(.subheadline)
@@ -62,8 +62,23 @@ struct MultiImageView: View {
                 .frame(maxWidth: 180)
             }
 
-            if viewModel.multiImageFormat.isLossy {
-                qualitySlider(format: viewModel.multiImageFormat)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Compression")
+                    .font(.subheadline)
+                Picker("Compression", selection: $bindable.options.imageCompression) {
+                    ForEach(CompressionMode.allCases) { mode in
+                        Label(mode.displayName, systemImage: mode.symbol).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            if viewModel.options.imageCompression == .lossy {
+                if viewModel.multiImageFormat.isLossy {
+                    qualitySlider(format: viewModel.multiImageFormat)
+                }
+                maxEdgeSlider
             }
 
             Text("Files are saved to the folder you choose, preserving each original name.")
@@ -72,6 +87,25 @@ struct MultiImageView: View {
         }
         .padding(14)
         .glassEffect(.regular, in: .rect(cornerRadius: 14))
+    }
+
+    @ViewBuilder
+    private var maxEdgeSlider: some View {
+        @Bindable var bindable = viewModel
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Max long edge")
+                    .font(.subheadline)
+                Spacer()
+                Text(viewModel.options.imageMaxLongEdge == 0
+                     ? "Original"
+                     : "\(Int(viewModel.options.imageMaxLongEdge)) px")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $bindable.options.imageMaxLongEdge, in: 0...8000, step: 100)
+        }
     }
 
     private var mergeControls: some View {

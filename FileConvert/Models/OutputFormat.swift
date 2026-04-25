@@ -122,13 +122,14 @@ enum OutputFormat: Hashable, Identifiable, Sendable {
 }
 
 enum OutputFamily: String, CaseIterable, Identifiable, Hashable, Sendable {
-    case image, pdf, video
+    case image, pdf, video, document
     var id: String { rawValue }
     var displayName: String {
         switch self {
         case .image: return "Image"
         case .pdf: return "PDF"
         case .video: return "Video"
+        case .document: return "Document"
         }
     }
     var symbol: String {
@@ -136,6 +137,7 @@ enum OutputFamily: String, CaseIterable, Identifiable, Hashable, Sendable {
         case .image: return "photo"
         case .pdf: return "doc.richtext"
         case .video: return "film"
+        case .document: return "doc.text"
         }
     }
 }

@@ -21,6 +21,7 @@ enum ImageConverter {
         let sourceFrameCount = CGImageSourceGetCount(source)
         let supportsMultiFrame = Self.supportsMultiFrame(format)
         let frameCount = supportsMultiFrame ? sourceFrameCount : 1
+        let downsamplePixels = downsampleMaxPixels(options: options)
 
         guard let destination = CGImageDestinationCreateWithURL(
             destinationURL as CFURL,
@@ -38,8 +39,23 @@ enum ImageConverter {
 
         for index in 0..<frameCount {
             try Task.checkCancellation()
-            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else {
-                throw ConversionError.imageDecodeFailed(sourceURL)
+            let image: CGImage
+            if let downsamplePixels {
+                let opts: [String: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways as String: true,
+                    kCGImageSourceCreateThumbnailWithTransform as String: true,
+                    kCGImageSourceShouldCacheImmediately as String: true,
+                    kCGImageSourceThumbnailMaxPixelSize as String: downsamplePixels
+                ]
+                guard let thumb = CGImageSourceCreateThumbnailAtIndex(source, index, opts as CFDictionary) else {
+                    throw ConversionError.imageDecodeFailed(sourceURL)
+                }
+                image = thumb
+            } else {
+                guard let full = CGImageSourceCreateImageAtIndex(source, index, nil) else {
+                    throw ConversionError.imageDecodeFailed(sourceURL)
+                }
+                image = full
             }
             let frameProps = frameProperties(
                 source: source,
@@ -70,16 +86,28 @@ enum ImageConverter {
         }
     }
 
+    private static func effectiveQuality(for format: ImageFormat, options: ConversionOptions) -> Double? {
+        let raw: Double?
+        switch format {
+        case .jpeg: raw = options.jpegQuality
+        case .heic: raw = options.heicQuality
+        case .webp: raw = options.webpQuality
+        default: raw = nil
+        }
+        guard let raw else { return nil }
+        return options.imageCompression == .lossless ? 1.0 : raw
+    }
+
+    private static func downsampleMaxPixels(options: ConversionOptions) -> Int? {
+        guard options.imageCompression == .lossy else { return nil }
+        let edge = options.imageMaxLongEdge
+        guard edge > 0 else { return nil }
+        return Int(edge.rounded())
+    }
+
     private static func encoderProperties(for format: ImageFormat, options: ConversionOptions) -> [String: Any] {
         var props: [String: Any] = [:]
-        let quality: Double?
-        switch format {
-        case .jpeg: quality = options.jpegQuality
-        case .heic: quality = options.heicQuality
-        case .webp: quality = options.webpQuality
-        default: quality = nil
-        }
-        if let q = quality {
+        if let q = effectiveQuality(for: format, options: options) {
             props[kCGImageDestinationLossyCompressionQuality as String] = q
         }
         return props
@@ -107,11 +135,8 @@ enum ImageConverter {
             }
         }
 
-        switch format {
-        case .jpeg: props[kCGImageDestinationLossyCompressionQuality as String] = options.jpegQuality
-        case .heic: props[kCGImageDestinationLossyCompressionQuality as String] = options.heicQuality
-        case .webp: props[kCGImageDestinationLossyCompressionQuality as String] = options.webpQuality
-        default: break
+        if let q = effectiveQuality(for: format, options: options) {
+            props[kCGImageDestinationLossyCompressionQuality as String] = q
         }
 
         return props
