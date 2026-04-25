@@ -31,6 +31,6 @@ struct ContentView: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.route)
         .background(Color(nsColor: .windowBackgroundColor))
-        .navigationTitle("FileConvert")
+        .navigationTitle("File Convert")
     }
 }

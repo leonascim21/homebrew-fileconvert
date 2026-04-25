@@ -7,7 +7,7 @@ struct FileConvertApp: App {
     @State private var viewModel = AppViewModel.shared
 
     var body: some Scene {
-        Window("FileConvert", id: "main") {
+        Window("File Convert", id: "main") {
             ContentView()
                 .environment(viewModel)
                 .frame(minWidth: 680, minHeight: 520)
