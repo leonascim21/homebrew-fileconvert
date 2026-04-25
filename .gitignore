@@ -1,1 +1,11 @@
-/.DS_Store
+# macOS
+.DS_Store
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+
+# Xcode build output
+build/
+DerivedData/
+*.xcarchive
