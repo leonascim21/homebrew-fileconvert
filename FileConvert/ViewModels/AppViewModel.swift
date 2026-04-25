@@ -37,6 +37,8 @@ enum ConversionState: Equatable {
 @Observable
 @MainActor
 final class AppViewModel {
+    static let shared = AppViewModel()
+
     var route: AppRoute = .landing
     var state: ConversionState = .idle
 

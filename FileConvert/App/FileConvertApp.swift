@@ -1,8 +1,10 @@
 import SwiftUI
+import AppKit
 
 @main
 struct FileConvertApp: App {
-    @State private var viewModel = AppViewModel()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @State private var viewModel = AppViewModel.shared
 
     var body: some Scene {
         WindowGroup("FileConvert") {
@@ -19,5 +21,12 @@ struct FileConvertApp: App {
                     .keyboardShortcut("o", modifiers: [.command])
             }
         }
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        AppViewModel.shared.handleDrop(urls: urls)
     }
 }
