@@ -63,7 +63,7 @@ final class AppViewModel {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
         panel.prompt = "Select"
-        panel.message = "Choose an image, PDF, or video — or multiple images."
+        panel.message = "Choose an image, PDF, or video — or multiple images / PDFs."
         if panel.runModal() == .OK {
             route(to: panel.urls)
         }
@@ -95,16 +95,16 @@ final class AppViewModel {
             return
         }
 
-        let allImages = urls.allSatisfy {
-            FormatDetector.family(for: FormatDetector.detect(url: $0)) == .image
-        }
+        let families = urls.map { FormatDetector.family(for: FormatDetector.detect(url: $0)) }
 
-        if allImages {
+        if families.allSatisfy({ $0 == .image }) {
             multiImageMode = .convertEach
             multiImageFormat = .png
             route = .multiImage(sources: urls)
+        } else if families.allSatisfy({ $0 == .pdf }) {
+            route = .multiPDF(sources: urls)
         } else {
-            state = .failed("Multi-file drops must be images only.")
+            state = .failed("Multi-file drops must be all images or all PDFs.")
         }
     }
 
@@ -241,6 +241,25 @@ final class AppViewModel {
                 )
                 return .singleFile(destination)
             }
+        }
+    }
+
+    func startMultiPDFConversion() {
+        guard case .multiPDF(let sources) = route else { return }
+        let firstBase = sources.first?.deletingPathExtension().lastPathComponent ?? "Merged"
+        let suggested = "\(firstBase) merged.pdf"
+        guard let destination = promptSaveDestination(
+            suggestedName: suggested,
+            allowedContentType: .pdf
+        ) else { return }
+
+        runConversion { progress in
+            try await PDFConverter.mergePDFs(
+                sourceURLs: sources,
+                destinationURL: destination,
+                progress: progress
+            )
+            return .singleFile(destination)
         }
     }
 

@@ -21,6 +21,9 @@ struct ContentView: View {
             case .multiImage(let sources):
                 MultiImageView(sources: sources)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
+            case .multiPDF(let sources):
+                MultiPDFView(sources: sources)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: viewModel.route)

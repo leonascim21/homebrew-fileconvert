@@ -6,6 +6,7 @@ enum AppRoute: Equatable {
     case pdf(source: URL)
     case video(source: URL)
     case multiImage(sources: [URL])
+    case multiPDF(sources: [URL])
 
     var isLanding: Bool {
         if case .landing = self { return true }

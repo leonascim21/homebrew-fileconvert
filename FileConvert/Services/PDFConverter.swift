@@ -29,6 +29,51 @@ enum PDFConverter {
         await progress(1)
     }
 
+    static func mergePDFs(
+        sourceURLs: [URL],
+        destinationURL: URL,
+        progress: @Sendable (Double) async -> Void
+    ) async throws {
+        await progress(0)
+        try Task.checkCancellation()
+
+        guard !sourceURLs.isEmpty else {
+            throw ConversionError.pdfWriteFailed(destinationURL)
+        }
+
+        let merged = PDFDocument()
+        var totalPages = 0
+        let docs: [PDFDocument] = try sourceURLs.map { url in
+            guard let doc = PDFDocument(url: url) else {
+                throw ConversionError.pdfLoadFailed(url)
+            }
+            totalPages += doc.pageCount
+            return doc
+        }
+
+        guard totalPages > 0 else {
+            throw ConversionError.pdfWriteFailed(destinationURL)
+        }
+
+        var written = 0
+        for doc in docs {
+            for index in 0..<doc.pageCount {
+                try Task.checkCancellation()
+                guard let page = doc.page(at: index) else {
+                    throw ConversionError.pdfRenderFailed(written + 1)
+                }
+                merged.insert(page, at: merged.pageCount)
+                written += 1
+                await progress(Double(written) / Double(totalPages) * 0.95)
+            }
+        }
+
+        if !merged.write(to: destinationURL) {
+            throw ConversionError.pdfWriteFailed(destinationURL)
+        }
+        await progress(1)
+    }
+
     static func mergeImagesToPDF(
         sourceURLs: [URL],
         destinationURL: URL,
